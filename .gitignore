@@ -1,0 +1,17 @@
+# 编译文件
+*.o
+*.out
+main
+*.exe
+*.log
+
+# 临时文件
+*.tmp
+*.swp
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# CMake 和构建目录（如果你用）
+build/
