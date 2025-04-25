@@ -17,3 +17,6 @@ This project is a smart transport vehicle using dual sensors:
 ## How to Run
 1. Compile with: make
 2. Run: ./main
+
+## Tools
+1.fps_check: Check all resolution and fps option of present camera
