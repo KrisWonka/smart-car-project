@@ -14,7 +14,7 @@
 #define I2C_ADDR 0x4C
 #define MAX_ANGLE 40
 
-float read_gray_angle() {
+float read_gray_angle(float thresh = 170.0f, float dist = 100.0f /*unit：mm*/) {
     int file;
     if ((file = open(I2C_DEVICE, O_RDWR)) < 0) {
         perror("无法打开I2C设备");
@@ -44,18 +44,30 @@ float read_gray_angle() {
     }
     close(file);
 
-    // 计算灰度传感器角度
-    int positions[8] = {-3, -2, -1, 0, 0, 1, 2, 3};
-    int weights[8], total = 0, weighted_sum = 0;
+    printf("读取数据: ");
     for (int i = 0; i < 8; i++) {
-        weights[i] = 255 - buf[i];
-        weighted_sum += positions[i] * weights[i];
-        total += weights[i];
+        printf("%d ", buf[i]);
     }
-    if (total == 0) return 0;
+    printf("\n");
 
-    float offset = (float)weighted_sum / total;
-    return std::max(std::min(offset * 12.0f, (float)MAX_ANGLE), -float(MAX_ANGLE));
+    // 计算灰度传感器角度
+    float positions[8] = {-38.5, -27.5, -16.5, -5.5, 5.5, 16.5, 27.5, 36.5};
+    float sum_pos = 0;
+    int count = 0;
+    for (int i = 0; i < 8; i++) {
+        if (buf[i] < thresh) {  // 视为命中黑线
+            sum_pos += positions[i];
+            count++;
+        }
+    }
+
+    if (count == 0) return 0;  // 没有黑点，返回0角度
+
+    float center_offset = sum_pos / count;  // mm单位
+    float angle_rad = atan(center_offset / dist);  // 弧度
+    float angle_deg = angle_rad * 180.0 / M_PI;    // 转为角度
+
+    return angle_deg;
 }
 
 //摄像头------------------------------------------------------------------------------------------------
@@ -71,7 +83,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &last_time);
     
     // 初始化摄像头
-    cv::VideoCapture cap(4);//摄像头编号
+    cv::VideoCapture cap(5);//摄像头编号
     // cv::VideoCapture cap("/dev/video4", cv::CAP_V4L2);
     // 设置相机参数
     // cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
