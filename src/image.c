@@ -58,7 +58,7 @@ void turn_to_bin(void)
     int sum = 0, sumB = 0, q1 = 0, q2 = 0;
     double maxVar = 0;
     uint8_t threshold = 0;
-    int bias = 5;  // 负值：让图像更黑，抑制白块；正值：让图像更亮
+    int bias = 15;  // 负值：让图像更黑，抑制白块；正值：让图像更亮
    
     for (int i = 0; i < 256; i++) sum += i * hist[i];
 
@@ -354,9 +354,9 @@ int center_line2_filtered[IMAGE_H];  // 滤波后的中线
 void kalman_filter_center_line2(int y_start)
 {   
     float x = center_line2[1];  // 位置估计值
-    float v = 10000000000;  // 速度（斜率）估计值
-    float p_x = 1, p_v = 1;  // 初始误差
-    float q_x = 0.1, q_v = 0.1;  // 过程噪声
+    float v = center_line2[2] - center_line2[1];;  // 速度（斜率）估计值
+    float p_x = 0.3, p_v = 0.3;  // 初始误差
+    float q_x = 0.05, q_v = 0.05;  // 过程噪声
     float r = 4.0;  // 测量噪声
     float k_x, k_v;  // 卡尔曼增益
 
@@ -382,6 +382,65 @@ void kalman_filter_center_line2(int y_start)
 
         center_line2_filtered[y] = (int)x;  // 存储滤波后的结果
     }
+    // // 状态向量: [位置x, 速度v]^T
+    // float x = center_line2[1];
+    // float v = center_line2[2] - center_line2[1];  // 初始速度估计为斜率
+    // float dt = 1.0;  // 步长，按行号递增可以看作1像素
+
+    // // 状态协方差矩阵 P
+    // float p_xx = 1, p_xv = 0;
+    // float p_vx = 0, p_vv = 1;
+
+    // // 过程噪声 Q（系统模型不完美）
+    // float q = 0.1;
+    // float q_xx = q * dt * dt, q_xv = q * dt;
+    // float q_vx = q * dt,     q_vv = q;
+
+    // // 观测噪声协方差 R
+    // float r = 4.0;
+
+    // // 保留 y_start 以下部分
+    // for (int y = y_start; y < IMAGE_H; y++) {
+    //     center_line2_filtered[y] = center_line2[y];
+    // }
+
+    // // 从 y=1 到 y_start-1 向上滤波
+    // for (int y = 1; y < y_start; y++) {
+    //     int z = center_line2[y];  // 观测值
+
+    //     // === 1. 预测 ===
+    //     float x_pred = x + v * dt;
+    //     float v_pred = v;
+
+    //     // 协方差预测 P = A * P * A^T + Q
+    //     float p_xx_pred = p_xx + dt * (p_vx + p_xv) + dt * dt * p_vv + q_xx;
+    //     float p_xv_pred = p_xv + dt * p_vv + q_xv;
+    //     float p_vx_pred = p_vx + dt * p_vv + q_vx;
+    //     float p_vv_pred = p_vv + q_vv;
+
+    //     // === 2. 更新 ===
+    //     // 观测矩阵 H = [1, 0]
+    //     float y_k = z - x_pred;  // 残差
+
+    //     float s = p_xx_pred + r;  // 残差协方差
+
+    //     // 卡尔曼增益 K = P * H^T / S
+    //     float k_x = p_xx_pred / s;
+    //     float k_v = p_vx_pred / s;
+
+    //     // 状态更新
+    //     x = x_pred + k_x * y_k;
+    //     v = v_pred + k_v * y_k;
+
+    //     // 协方差更新 P = (I - K*H) * P
+    //     p_xx = p_xx_pred - k_x * p_xx_pred;
+    //     p_xv = p_xv_pred - k_x * p_xv_pred;
+    //     p_vx = p_vx_pred - k_v * p_xx_pred;
+    //     p_vv = p_vv_pred - k_v * p_xv_pred;
+
+    //     // 存储滤波结果
+    //     center_line2_filtered[y] = (int)(x + 0.5);  // 四舍五入
+    // }
 }
 
 
@@ -488,6 +547,18 @@ void merge_center_lines_final(int y_split)
     }
 }
 
+//中心线平滑处理：
+void smooth_center_line_blend(int y1, int range) {
+    for (int i = 0; i < range; i++) {
+        int y = y1 - range / 2 + i;
+        if (y <= 0 || y >= IMAGE_H) continue;
+
+        float t = i / (float)(range - 1);
+        int val2 = center_line2_filtered[y];
+        int val1 = center_line[y];
+        center_line_final[y] = (int)((1 - t) * val1 + t * val2);
+    }
+}
 
 
 
@@ -573,6 +644,7 @@ void process_current_frame(void)
     patch_border_line_downward(y2, y1, k_l, b_l, k_r, b_r);
     compute_center_line_down(); // 重新计算 center_line2 用于合并
     kalman_filter_center_line2(y1);// Kalman滤波
+    // smooth_center_line_blend(y1, 10); // 可调节 blend 长度
     merge_center_lines_final(y1);// 合并中心线
     draw_center_line_final();
     // draw_center_line();

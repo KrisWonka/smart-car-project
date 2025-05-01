@@ -83,7 +83,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &last_time);
     
     // 初始化摄像头
-    cv::VideoCapture cap(5);//摄像头编号
+    cv::VideoCapture cap(8);//摄像头编号
     // cv::VideoCapture cap("/dev/video4", cv::CAP_V4L2);
     // 设置相机参数
     // cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
@@ -140,8 +140,32 @@ int main()
         float gray_angle = read_gray_angle();
 
         // 加权融合
-        float fused_angle = 0.7f * cam_angle + 0.3f * gray_angle;
+        // float fused_angle = 0.7f * cam_angle + 0.3f * gray_angle;
+        // =======【互补协同滤波融合】======= //
+        static float last_cam_angle = 0.0f;
+        static float last_gray_angle = 0.0f;
 
+        // 波动幅度（简单差分法）
+        float cam_variation = fabs(cam_angle - last_cam_angle);
+        float gray_variation = fabs(gray_angle - last_gray_angle);
+
+        float angle_diff = fabs(cam_angle - gray_angle);
+        float fused_angle = 0.0f;
+
+        if (angle_diff < 10.0f) {
+            // 两者接近，直接平均
+            fused_angle = (cam_angle + gray_angle) / 2.0f;
+        } else {
+            // 取波动更小者
+            fused_angle = (gray_variation < cam_variation) ? gray_angle : cam_angle;
+        }
+
+        // 更新历史值
+        last_cam_angle = cam_angle;
+        last_gray_angle = gray_angle;
+        // =======【融合结束】======= //
+        
+        // 打印角度
         printf("CAM: %.2f°, GRAY: %.2f°, FUSED: %.2f°\n", cam_angle, gray_angle, fused_angle);
 
 

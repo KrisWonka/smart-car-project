@@ -72,6 +72,7 @@ void patch_border_line_downward(int start_y, int end_y, float k_l, float b_l, fl
 // 卡尔曼滤波
 void kalman_filter_center_line2(int y_start);
 // 合并并绘制最终中心线
+void smooth_center_line_blend(int y1, int range);
 void merge_center_lines_final(int y_split);
 void draw_center_line_final(void);
 
