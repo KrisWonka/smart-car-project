@@ -44,15 +44,13 @@ void compute_center_line(void);
 void save_borders(void);
 void process_current_frame(void);
 
-// 全局变量声明（若需要跨文件访问）
+// 全局变量
 extern int l_border_top[IMAGE_H];
 extern int r_border_top[IMAGE_H];
 extern int center_line2[IMAGE_H];
 extern int l_count2, r_count2;
 extern int points_l2[MAX_POINTS][2];
 extern int points_r2[MAX_POINTS][2];
-
-// 函数声明（按模块组织）
 
 // 从上往下八邻域边界搜索
 void search_l_r_top_down(int start_row);
@@ -76,7 +74,7 @@ void smooth_center_line_blend(int y1, int range);
 void merge_center_lines_final(int y_split);
 void draw_center_line_final(void);
 
-// 中心线计算（补线用）
+// 中心线计算
 void compute_center_line_down(void);
 
 #ifdef __cplusplus
