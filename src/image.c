@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-// #include "config.h"
+#include "config.h"
 
 uint8_t original_image[IMAGE_H][IMAGE_W];
 uint8_t bin_image[IMAGE_H][IMAGE_W];
@@ -58,8 +58,8 @@ void turn_to_bin(void)
     int sum = 0, sumB = 0, q1 = 0, q2 = 0;
     double maxVar = 0;
     uint8_t threshold = 0;
-    int bias = 15;  // 负值：让图像更黑，抑制白块；正值：让图像更亮
-   
+    int bias = OTSU_BIAS;  // 负值：让图像更黑，抑制白块；正值：让图像更亮
+    printf("偏移值：%d\n", bias);
     for (int i = 0; i < 256; i++) sum += i * hist[i];
 
     for (int t = 0; t < 256; t++) {
@@ -450,7 +450,7 @@ int detect_break_in_center_line(void)
     for (int y = IMAGE_H - 2; y > 5; y--) {
         int c1 = center_line[y];
         int c2 = center_line[y - 1];
-        if (abs(c1 - c2) > 3) { // 超过3像素跳变，视为断裂
+        if (abs(c1 - c2) > 5) { // 超过3像素跳变，视为断裂
             // printf("中线断裂点 y1 = %d\n", y);//-----------------------------------check
             y++;
             return y;
@@ -465,7 +465,7 @@ int detect_break_in_center_line_down(int *fit_lx, int *fit_rx)
     for (int y = 5; y < IMAGE_H - 1; y++) {
         int c1 = center_line2[y];
         int c2 = center_line2[y + 1];
-        if (abs(c1 - c2) > 3) {
+        if (abs(c1 - c2) > 5) {
             *fit_lx = l_border_top[y];  // 取断裂点前一行的左右边界
             *fit_rx = r_border_top[y];
             // printf("补线起点 y2 = %d, 左=%d, 右=%d\n", y, *fit_lx, *fit_rx);//--------------------------check

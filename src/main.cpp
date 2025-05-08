@@ -1,7 +1,7 @@
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
 #include "image.h" // 头文件
-// #include "config.h" // 补线配置文件
+#include "config.h" // 参数配置文件
 #include <time.h>
 
 //灰度传感器----------------------------------------------------------------------------------
@@ -10,11 +10,36 @@
 #include <linux/i2c-dev.h>
 #include <sys/ioctl.h>
 
+// 串口
+#include <termios.h>
+
 #define I2C_DEVICE "/dev/i2c-0"
 #define I2C_ADDR 0x4C
-#define MAX_ANGLE 40
+// #define MAX_ANGLE 40
 
-float read_gray_angle(float thresh = 170.0f, float dist = 100.0f /*unit：mm*/) {
+int init_serial(const char* device) {
+    int fd = open(device, O_RDWR | O_NOCTTY | O_NDELAY);
+    if (fd == -1) {
+        perror("打开串口失败");
+        return -1;
+    }
+
+    struct termios options;
+    tcgetattr(fd, &options);
+    cfsetispeed(&options, B9600);
+    cfsetospeed(&options, B9600);
+    options.c_cflag &= ~PARENB;
+    options.c_cflag &= ~CSTOPB;
+    options.c_cflag &= ~CSIZE;
+    options.c_cflag |= CS8;
+    options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+    options.c_iflag &= ~(IXON | IXOFF | IXANY);
+    options.c_oflag &= ~OPOST;
+    tcsetattr(fd, TCSANOW, &options);
+    return fd;
+}
+
+float read_gray_angle(float thresh = 230.0f, float dist = 100.0f /*unit：mm*/) {
     int file;
     if ((file = open(I2C_DEVICE, O_RDWR)) < 0) {
         perror("无法打开I2C设备");
@@ -76,14 +101,17 @@ extern "C" {
 }
 
 int main()
-{   struct timespec last_time, current_time;
+{   int serial_fd = init_serial("/dev/ttyS1");  // ⚠️ 改成实际的串口名，如 /dev/ttyUSB0
+    if (serial_fd == -1) return -1;
+    // 初始化 I2C
+    struct timespec last_time, current_time;
     int frame_counter = 0;
     double elapsed;
     
     clock_gettime(CLOCK_MONOTONIC, &last_time);
     
     // 初始化摄像头
-    cv::VideoCapture cap(8);//摄像头编号
+    cv::VideoCapture cap(4);//摄像头编号
     // cv::VideoCapture cap("/dev/video4", cv::CAP_V4L2);
     // 设置相机参数
     // cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
@@ -129,45 +157,109 @@ int main()
         // 加串口发送 offset 给小车
 
         //双传感器版
-        // 图像角度计算
-        int sum = 0;
-        for (int i = IMAGE_H - 15; i < IMAGE_H; i++)
-            sum += center_line_final[i];
-        float cam_offset = (sum / 15.0f) - (IMAGE_W / 2.0f) + 11.0f;
-        float cam_angle = cam_offset * 0.4f;  // 每像素约0.4度
+        // // 图像角度计算
+        // // 用最小二乘法计算拟合角度
+        // float sum_x = 0.0f, sum_y = 0.0f, sum_xy = 0.0f, sum_yy = 0.0f;
+        // int n_points = 90;
+
+        // for (int k = 0; k < n_points; ++k) {
+        //     int y = IMAGE_H - 2 - k;             // 从底部往上选点 (y decreasing)
+        //     float x = center_line_final[y];      // 中线的 x 坐标
+        //     sum_x += x;
+        //     sum_y += y;
+        //     sum_xy += x * y;
+        //     sum_yy += y * y;
+        // }
+
+        // float denominator = (n_points * sum_yy - sum_y * sum_y);
+        // float slope = (denominator == 0.0f) ? 0.0f :
+        //             (n_points * sum_xy - sum_x * sum_y) / denominator;
+
+        // float cam_angle = atan(slope) * 180.0f / M_PI;  // 正值代表向右偏，负值向左偏]
+        // Step 1: 位置偏差
+        int bottom_y = BOTTOM_Y;
+        int window = WINDOW;
+        int count=0;
+        int sum=0;
+        for (int i = IMAGE_H -bottom_y - window; i < IMAGE_H -bottom_y + window; i++) {
+            sum+=center_line_final[i];
+            count++;
+        }
+        int x_centerline = sum / count;
+        printf("x_centerline = %d\n", x_centerline);
+
+        int img_center = IMAGE_W / 2;
+        float lateral_error = x_centerline - img_center;
+        printf("lateral_error = %.2f\n", lateral_error);
+        // Step 2: 航向角误差（用最小二乘法估计）
+        // int dy = -10;
+        // int x1 = center_line_final[bottom_y];
+        // int x2 = center_line_final[bottom_y + dy];  // 注意方向
+        // float dx = x1 - x2;
+        // float heading_error = atan2(dy, dx) * 180.0 / M_PI +90;
+        // printf("heading_error = %.2f\n", heading_error);
+        float sum_x = 0.0f, sum_y = 0.0f, sum_xy = 0.0f, sum_yy = 0.0f;
+        int n_points = N_POINT;
+
+        for (int k = 0; k < n_points; ++k) {
+            int y = IMAGE_H - 2 - k;             // 从底部往上选点 (y decreasing)
+            float x = center_line_final[y];      // 中线的 x 坐标
+            sum_x += x;
+            sum_y += y;
+            sum_xy += x * y;
+            sum_yy += y * y;
+        }
+
+        float denominator = (n_points * sum_yy - sum_y * sum_y);
+        float slope = (denominator == 0.0f) ? 0.0f :
+                    (n_points * sum_xy - sum_x * sum_y) / denominator;
+
+        float heading_error = atan(slope) * 180.0f / M_PI;  // 正值代表向右偏，负值向左偏]
+        // Step 3: 舵机角度控制（P控制）
+        float Kp = K_P, Kd = K_D;
+        float steering_angle = Kp * lateral_error + Kd * heading_error;
+        if (steering_angle > MAX_ANGLE) steering_angle = MAX_ANGLE;
+        if (steering_angle < -MAX_ANGLE) steering_angle = -MAX_ANGLE;
+
+
 
         // 灰度角度读取
         float gray_angle = read_gray_angle();
 
         // 加权融合
-        // float fused_angle = 0.7f * cam_angle + 0.3f * gray_angle;
-        // =======【互补协同滤波融合】======= //
-        static float last_cam_angle = 0.0f;
-        static float last_gray_angle = 0.0f;
+        // float fused_angle = 1.0f * cam_angle + 0.0f * gray_angle;
+        float fused_angle = 1.0f * steering_angle + 0.0f * gray_angle;
+        // 互补协同滤波融合
+        // static float last_cam_angle = 0.0f;
+        // static float last_gray_angle = 0.0f;
 
-        // 波动幅度（简单差分法）
-        float cam_variation = fabs(cam_angle - last_cam_angle);
-        float gray_variation = fabs(gray_angle - last_gray_angle);
+        // // 波动幅度（简单差分法）
+        // float cam_variation = fabs(cam_angle - last_cam_angle);
+        // float gray_variation = fabs(gray_angle - last_gray_angle);
 
-        float angle_diff = fabs(cam_angle - gray_angle);
-        float fused_angle = 0.0f;
+        // float angle_diff = fabs(cam_angle - gray_angle);
+        // float fused_angle = 0.0f;
 
-        if (angle_diff < 10.0f) {
-            // 两者接近，直接平均
-            fused_angle = (cam_angle + gray_angle) / 2.0f;
-        } else {
-            // 取波动更小者
-            fused_angle = (gray_variation < cam_variation) ? gray_angle : cam_angle;
-        }
+        // if (angle_diff < 10.0f) {
+        //     // 两者接近，直接平均
+        //     fused_angle = (cam_angle + gray_angle) / 2.0f;
+        // } else {
+        //     // 取波动更小者
+        //     fused_angle = (gray_variation < cam_variation) ? gray_angle : cam_angle;
+        // }
 
-        // 更新历史值
-        last_cam_angle = cam_angle;
-        last_gray_angle = gray_angle;
-        // =======【融合结束】======= //
+        // // 更新历史值
+        // last_cam_angle = cam_angle;
+        // last_gray_angle = gray_angle;
+        // // =======【融合结束】======= //
         
         // 打印角度
-        printf("CAM: %.2f°, GRAY: %.2f°, FUSED: %.2f°\n", cam_angle, gray_angle, fused_angle);
+        printf("CAM: %.2f°, GRAY: %.2f°, FUSED: %.2f°\n", steering_angle, gray_angle, fused_angle);
 
+        char msg[16];
+        snprintf(msg, sizeof(msg), "%.2f\n", fused_angle);  // 带换行符，Arduino 正常读取
+        write(serial_fd, msg, strlen(msg));
+        printf("%s\n",msg);
 
 
 
@@ -182,11 +274,11 @@ int main()
         cv::Mat resized;
         cv::resize(processed, resized, cv::Size(IMAGE_W * 4, IMAGE_H * 4));
 
-        // 显示处理后的图像
-        cv::imshow("Processed Image", resized);
-        // 显示原图像
-        cv::imshow("frame", frame);
-        if (cv::waitKey(1) == 27) break; // 按 ESC 退出
+        // // 显示处理后的图像
+        // cv::imshow("Processed Image", resized);
+        // // 显示原图像
+        // cv::imshow("frame", frame);
+        // if (cv::waitKey(1) == 27) break; // 按 ESC 退出
 
         // 计算帧率
         frame_counter++;

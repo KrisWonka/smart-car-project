@@ -7,6 +7,7 @@ This project is a smart transport vehicle using dual sensors:
 ## Modules
 - `main.cpp`: Entry
 - `image.c/h`: Image line detection & centerline completion
+- `config.h`: Convenient parameter tuning
 - `makefile` — compilation config
 
 ## Features
@@ -20,3 +21,4 @@ This project is a smart transport vehicle using dual sensors:
 
 ## Tools
 1.fps_check: Check all resolution and fps option of present camera
+2.servo_ctl: Control servo with Serial.
