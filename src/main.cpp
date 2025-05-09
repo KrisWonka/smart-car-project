@@ -158,12 +158,6 @@ int main()
         float lateral_error = x_centerline - img_center;
         printf("x_centerline = %d | lateral_error = %.2f\n", x_centerline, lateral_error);
         // Step 2: 航向角误差（最小二乘法）
-            // int dy = -10;
-            // int x1 = center_line_final[bottom_y];
-            // int x2 = center_line_final[bottom_y + dy];  // 注意方向
-            // float dx = x1 - x2;
-            // float heading_error = atan2(dy, dx) * 180.0 / M_PI +90;
-            // printf("heading_error = %.2f\n", heading_error);
         float sum_x = 0.0f, sum_y = 0.0f, sum_xy = 0.0f, sum_yy = 0.0f;
         int n_points = N_POINT;
 
@@ -193,28 +187,6 @@ int main()
         // 加权融合
         float fused_angle = 1.0f * steering_angle + 0.0f * gray_angle;
         
-        // 互补协同滤波融合
-        // static float last_cam_angle = 0.0f;
-        // static float last_gray_angle = 0.0f;
-
-        // // 波动幅度（简单差分法）
-        // float cam_variation = fabs(cam_angle - last_cam_angle);
-        // float gray_variation = fabs(gray_angle - last_gray_angle);
-
-        // float angle_diff = fabs(cam_angle - gray_angle);
-        // float fused_angle = 0.0f;
-
-        // if (angle_diff < 10.0f) {
-        //     // 两者接近，直接平均
-        //     fused_angle = (cam_angle + gray_angle) / 2.0f;
-        // } else {
-        //     // 取波动更小者
-        //     fused_angle = (gray_variation < cam_variation) ? gray_angle : cam_angle;
-        // }
-
-        // // 更新历史值
-        // last_cam_angle = cam_angle;
-        // last_gray_angle = gray_angle;
         
         // 打印角度
         printf("CAM: %.2f°, GRAY: %.2f°, FUSED: %.2f°\n", steering_angle, gray_angle, fused_angle);

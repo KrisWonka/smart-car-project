@@ -102,15 +102,15 @@ void get_start_point(int start_row, int *l_x, int *l_y, int *r_x, int *r_y)
     *l_x = 0; *l_y = start_row;
     *r_x = 0; *r_y = start_row;
 
-    for (int i = IMAGE_W / 2; i > BORDER_MIN; i--)
-        if (bin_image[start_row][i] == 255 && bin_image[start_row][i - 1] == 0) {
-            *l_x = i;
+    for (int i = IMAGE_W; i > BORDER_MIN; i--)
+        if (bin_image[start_row][i] == 0 && bin_image[start_row][i - 1] == 255) {
+            *r_x = i;
             break;
         }
 
-    for (int i = IMAGE_W / 2; i < BORDER_MAX; i++)
-        if (bin_image[start_row][i] == 255 && bin_image[start_row][i + 1] == 0) {
-            *r_x = i;
+    for (int i = 0; i < BORDER_MAX; i++)
+        if (bin_image[start_row][i] == 0 && bin_image[start_row][i + 1] == 255) {
+            *l_x = i;
             break;
         }
 }
