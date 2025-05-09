@@ -1,7 +1,6 @@
 #include <opencv2/opencv.hpp>
 #include <stdio.h>
-#include "image.h" // 头文件
-// #include "config.h" // 补线配置文件
+#include "image.h"
 #include <time.h>
 
 //灰度传感器----------------------------------------------------------------------------------
@@ -55,15 +54,15 @@ float read_gray_angle(float thresh = 170.0f, float dist = 100.0f /*unit：mm*/) 
     float sum_pos = 0;
     int count = 0;
     for (int i = 0; i < 8; i++) {
-        if (buf[i] < thresh) {  // 视为命中黑线
+        if (buf[i] < thresh) { 
             sum_pos += positions[i];
             count++;
         }
     }
 
-    if (count == 0) return 0;  // 没有黑点，返回0角度
+    if (count == 0) return 0;  
 
-    float center_offset = sum_pos / count;  // mm单位
+    float center_offset = sum_pos / count; 
     float angle_rad = atan(center_offset / dist);  // 弧度
     float angle_deg = angle_rad * 180.0 / M_PI;    // 转为角度
 
@@ -72,7 +71,7 @@ float read_gray_angle(float thresh = 170.0f, float dist = 100.0f /*unit：mm*/) 
 
 //摄像头------------------------------------------------------------------------------------------------
 extern "C" {
-    void process_current_frame(void); // 声明 C 函数
+    void process_current_frame(void); 
 }
 
 int main()
@@ -83,7 +82,7 @@ int main()
     clock_gettime(CLOCK_MONOTONIC, &last_time);
     
     // 初始化摄像头
-    cv::VideoCapture cap(8);//摄像头编号
+    cv::VideoCapture cap(0);//摄像头编号
     // cv::VideoCapture cap("/dev/video4", cv::CAP_V4L2);
     // 设置相机参数
     // cap.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
@@ -96,9 +95,7 @@ int main()
         return -1;
     }
 
-    // const char* method_names[] = {"最小二乘法", "斜率延伸法", "多项式拟合法", "卡尔曼滤波"};
-    // printf("[INFO] 当前补线方法: %s\n", method_names[PATCH_METHOD]);
-
+   
     while (1) {
         cv::Mat frame;
         cap >> frame;
@@ -107,28 +104,15 @@ int main()
         // 转灰度
         cv::Mat gray;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-        cv::GaussianBlur(gray, gray, cv::Size(5, 5), 0); // 5x5核
+        cv::GaussianBlur(gray, gray, cv::Size(5, 5), 0); // 5x5核高斯滤波
         cv::equalizeHist(gray, gray);  // 提高对比度
         cv::resize(gray, gray, cv::Size(IMAGE_W, IMAGE_H)); // 尺寸适配
 
-        // 复制到 C 数组
         memcpy(original_image, gray.data, IMAGE_W * IMAGE_H);
 
-        // 调用图像处理算法
+        // 主处理算法
         process_current_frame();
 
-        // 计算偏移量 & 打印
-
-        //单cam版
-        // int sum = 0;
-        // for (int i = IMAGE_H - 10; i < IMAGE_H; i++)
-        //     sum += center_line_final[i];
-        // int offset = (sum / 10) - (IMAGE_W / 2)+11;
-        // printf("偏移量: %d\n", offset);
-
-        // 加串口发送 offset 给小车
-
-        //双传感器版
         // 图像角度计算
         int sum = 0;
         for (int i = IMAGE_H - 15; i < IMAGE_H; i++)
@@ -141,11 +125,11 @@ int main()
 
         // 加权融合
         // float fused_angle = 0.7f * cam_angle + 0.3f * gray_angle;
-        // =======【互补协同滤波融合】======= //
+        // 互补协同滤波融合
         static float last_cam_angle = 0.0f;
         static float last_gray_angle = 0.0f;
 
-        // 波动幅度（简单差分法）
+        // 波动幅度（差分法）
         float cam_variation = fabs(cam_angle - last_cam_angle);
         float gray_variation = fabs(gray_angle - last_gray_angle);
 
@@ -153,25 +137,21 @@ int main()
         float fused_angle = 0.0f;
 
         if (angle_diff < 10.0f) {
-            // 两者接近，直接平均
+            // 两者接近，取平均
             fused_angle = (cam_angle + gray_angle) / 2.0f;
         } else {
             // 取波动更小者
             fused_angle = (gray_variation < cam_variation) ? gray_angle : cam_angle;
         }
 
-        // 更新历史值
         last_cam_angle = cam_angle;
         last_gray_angle = gray_angle;
-        // =======【融合结束】======= //
         
         // 打印角度
         printf("CAM: %.2f°, GRAY: %.2f°, FUSED: %.2f°\n", cam_angle, gray_angle, fused_angle);
 
 
-
-
-        // 把处理后的 bin_image 转回 Mat 显示
+        // bin_image 转回 Mat 显示
         cv::Mat processed(IMAGE_H, IMAGE_W, CV_8UC1);
         for (int i = 0; i < IMAGE_H; i++) {
             for (int j = 0; j < IMAGE_W; j++) {

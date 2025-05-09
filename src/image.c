@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-// #include "config.h"
 
 uint8_t original_image[IMAGE_H][IMAGE_W];
 uint8_t bin_image[IMAGE_H][IMAGE_W];
@@ -58,7 +57,7 @@ void turn_to_bin(void)
     int sum = 0, sumB = 0, q1 = 0, q2 = 0;
     double maxVar = 0;
     uint8_t threshold = 0;
-    int bias = 15;  // 负值：让图像更黑，抑制白块；正值：让图像更亮
+    int bias = 15;  // 负值：图像更黑；正值：图像更亮
    
     for (int i = 0; i < 256; i++) sum += i * hist[i];
 
@@ -114,6 +113,7 @@ void get_start_point(int start_row, int *l_x, int *l_y, int *r_x, int *r_y)
             break;
         }
 }
+
 // 获取左右边界起始点
 void search_l_r(int l_start_x, int l_start_y, int r_start_x, int r_start_y)
 {
@@ -252,7 +252,7 @@ void search_l_r_top_down(int l_start_x, int l_start_y, int r_start_x, int r_star
     int cx_l = l_start_x, cy_l = l_start_y;
     int cx_r = r_start_x, cy_r = r_start_y;
     l_count = r_count = 0;
-    hightest = IMAGE_H - 1;  // 如果你想记录最高 y，向下走就更新为最大 y
+    hightest = IMAGE_H - 1; 
 
     for (int iter = 0; iter < MAX_POINTS; iter++) {
         points_l[l_count][0] = cx_l;
@@ -301,7 +301,6 @@ void search_l_r_top_down(int l_start_x, int l_start_y, int r_start_x, int r_star
             break;
         }
 
-        // 跳过非单调向下的点
         if (cy_r < cy_l) continue;
     }
     l_count2 = l_count;
@@ -362,7 +361,7 @@ void kalman_filter_center_line2(int y_start)
 
     // 保留 y1 以下的部分为原始 center_line 数据
     for (int y = y_start; y < IMAGE_H; y++) {
-        center_line2_filtered[y] = center_line[y];  // 继续使用原始 center_line
+        center_line2_filtered[y] = center_line[y];  
     }
 
     for (int y = 1; y < y_start; y++) {
@@ -382,65 +381,6 @@ void kalman_filter_center_line2(int y_start)
 
         center_line2_filtered[y] = (int)x;  // 存储滤波后的结果
     }
-    // // 状态向量: [位置x, 速度v]^T
-    // float x = center_line2[1];
-    // float v = center_line2[2] - center_line2[1];  // 初始速度估计为斜率
-    // float dt = 1.0;  // 步长，按行号递增可以看作1像素
-
-    // // 状态协方差矩阵 P
-    // float p_xx = 1, p_xv = 0;
-    // float p_vx = 0, p_vv = 1;
-
-    // // 过程噪声 Q（系统模型不完美）
-    // float q = 0.1;
-    // float q_xx = q * dt * dt, q_xv = q * dt;
-    // float q_vx = q * dt,     q_vv = q;
-
-    // // 观测噪声协方差 R
-    // float r = 4.0;
-
-    // // 保留 y_start 以下部分
-    // for (int y = y_start; y < IMAGE_H; y++) {
-    //     center_line2_filtered[y] = center_line2[y];
-    // }
-
-    // // 从 y=1 到 y_start-1 向上滤波
-    // for (int y = 1; y < y_start; y++) {
-    //     int z = center_line2[y];  // 观测值
-
-    //     // === 1. 预测 ===
-    //     float x_pred = x + v * dt;
-    //     float v_pred = v;
-
-    //     // 协方差预测 P = A * P * A^T + Q
-    //     float p_xx_pred = p_xx + dt * (p_vx + p_xv) + dt * dt * p_vv + q_xx;
-    //     float p_xv_pred = p_xv + dt * p_vv + q_xv;
-    //     float p_vx_pred = p_vx + dt * p_vv + q_vx;
-    //     float p_vv_pred = p_vv + q_vv;
-
-    //     // === 2. 更新 ===
-    //     // 观测矩阵 H = [1, 0]
-    //     float y_k = z - x_pred;  // 残差
-
-    //     float s = p_xx_pred + r;  // 残差协方差
-
-    //     // 卡尔曼增益 K = P * H^T / S
-    //     float k_x = p_xx_pred / s;
-    //     float k_v = p_vx_pred / s;
-
-    //     // 状态更新
-    //     x = x_pred + k_x * y_k;
-    //     v = v_pred + k_v * y_k;
-
-    //     // 协方差更新 P = (I - K*H) * P
-    //     p_xx = p_xx_pred - k_x * p_xx_pred;
-    //     p_xv = p_xv_pred - k_x * p_xv_pred;
-    //     p_vx = p_vx_pred - k_v * p_xx_pred;
-    //     p_vv = p_vv_pred - k_v * p_xv_pred;
-
-    //     // 存储滤波结果
-    //     center_line2_filtered[y] = (int)(x + 0.5);  // 四舍五入
-    // }
 }
 
 
@@ -450,13 +390,13 @@ int detect_break_in_center_line(void)
     for (int y = IMAGE_H - 2; y > 5; y--) {
         int c1 = center_line[y];
         int c2 = center_line[y - 1];
-        if (abs(c1 - c2) > 3) { // 超过3像素跳变，视为断裂
+        if (abs(c1 - c2) > 5) { // 超过？像素跳变，视为断裂
             // printf("中线断裂点 y1 = %d\n", y);//-----------------------------------check
             y++;
             return y;
         }
     }
-    return -1; // 没有断裂
+    return -1; 
 }
 
 //上往下断裂
@@ -524,7 +464,7 @@ void patch_border_line_downward(int start_y, int end_y, float k_l, float b_l, fl
         int lx = (int)(k_l * y + b_l);
         int rx = (int)(k_r * y + b_r);
 
-        // 限制左右边界不越界
+        // 限制左右边界
         lx = lx < BORDER_MIN ? BORDER_MIN : (lx > BORDER_MAX ? BORDER_MAX : lx);
         rx = rx < BORDER_MIN ? BORDER_MIN : (rx > BORDER_MAX ? BORDER_MAX : rx);
 
@@ -631,9 +571,6 @@ void process_current_frame(void)
     compute_center_line_down();
     // draw_center_line_down();
 //补线---------------------------------------------------
-        // 已有中心线处理...
-    // compute_center_line_down();
-
     int y1 = detect_break_in_center_line();
     int fit_lx, fit_rx;
     int y2 = detect_break_in_center_line_down(&fit_lx, &fit_rx);
@@ -642,7 +579,7 @@ void process_current_frame(void)
     fit_line_upward(y2 - 1, &k_l, &b_l, &k_r, &b_r);
 
     patch_border_line_downward(y2, y1, k_l, b_l, k_r, b_r);
-    compute_center_line_down(); // 重新计算 center_line2 用于合并
+    compute_center_line_down(); 
     kalman_filter_center_line2(y1);// Kalman滤波
     // smooth_center_line_blend(y1, 10); // 可调节 blend 长度
     merge_center_lines_final(y1);// 合并中心线
